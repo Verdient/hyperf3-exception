@@ -22,19 +22,19 @@ class ExceptionOccurredEvent
      * @var string 类型
      * @author Verdient。
      */
-    public ?string $type;
+    public ?string $type = null;
 
     /**
      * @var string 文件
      * @author Verdient。
      */
-    public ?string $file;
+    public ?string $file = null;
 
     /**
      * @var int 行号
      * @author Verdient。
      */
-    public ?int $line;
+    public ?int $line = null;
 
     /**
      * @var array 堆栈信息
