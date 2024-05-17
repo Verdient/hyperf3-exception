@@ -128,10 +128,13 @@ class ExceptionOccurredListener implements ListenerInterface
         $alert .= "\n$event->message";
         if ($line) {
             $alert .= "\nin $file:$line";
-            $phpFile = new SplFileObject($baseDir . $file, 'r');
-            $phpFile->seek($line - 1);
-            $snippet = trim($phpFile->current());
-            $alert .= "\n\n$snippet";
+            $path = $baseDir . $file;
+            if (file_exists($path)) {
+                $phpFile = new SplFileObject($path, 'r');
+                $phpFile->seek($line - 1);
+                $snippet = trim($phpFile->current());
+                $alert .= "\n\n$snippet";
+            }
         } else if ($file) {
             $alert .= "\nin $file";
         }
