@@ -117,7 +117,16 @@ class ExceptionOccurredListener implements ListenerInterface
                 $traceString = substr($traceString, 1);
             }
         }
-        $file = $event->file ? substr($event->file, strlen($baseDir)) : null;
+        if ($event->file) {
+            $baseDirLength = strlen($baseDir);
+            if (substr($event->file, 0, $baseDirLength) === $baseDir) {
+                $file = substr($event->file, $baseDirLength);
+            } else {
+                $file = $event->file;
+            }
+        } else {
+            $file = null;
+        }
         $line = $event->line;
         $type = $event->type;
         if ($event->type) {
