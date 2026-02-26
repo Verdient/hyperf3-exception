@@ -4,60 +4,64 @@ declare(strict_types=1);
 
 namespace Verdient\Hyperf3\Exception;
 
+use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\Event\Contract\ListenerInterface;
-use Hyperf\Stringable\Str;
-use SplFileObject;
+use Hyperf\ExceptionHandler\Formatter\FormatterInterface;
+use Hyperf\Logger\LoggerFactory;
+use Override;
+use RuntimeException;
 use Swoole\Coroutine;
-use Verdient\Hyperf3\Logger\HasLogger;
+use Verdient\Hyperf3\Di\Container;
 
 use function Hyperf\Config\config;
-use function Hyperf\Support\env;
+use function Hyperf\Support\make;
 
 /**
  * 异常发生监听器
+ *
  * @author Verdient。
  */
 class ExceptionOccurredListener implements ListenerInterface
 {
-    use HasLogger;
-
     /**
-     * @var bool 是否发送异常消息
+     * @var ReporterInterface[] 汇报器集合
+     *
      * @author Verdient。
      */
-    protected bool $enable = false;
+    protected array $reporters = [];
 
     /**
-     * @var string[] 发送的消息的哈希和时间
+     * 是否为调试模式
+     *
      * @author Verdient。
      */
-    protected array $hashs = [];
-
-    /**
-     * @var int 静默时间
-     * @author Verdient。
-     */
-    protected $silence = 7200;
-
-    /**
-     * @var int 上次发送时间
-     * @author Verdient。
-     */
-    protected $lastSendAt = null;
+    protected bool $isDebug;
 
     /**
      * @author Verdient。
      */
-    public function __construct()
+    public function __construct(protected readonly LoggerFactory $loggerFactory)
     {
-        $this->enable = config('alertors.enable', true);
+        if (config('exceptions.reporter.enable', false)) {
+            /** @var class-string<ReporterInterface>[] */
+            $reporters = array_unique([
+                ...config('exceptions.reporter.reporters', []),
+                ...array_keys(AnnotationCollector::getClassesByAnnotation(Reporter::class))
+            ]);
+
+            $this->reporters = array_map(function ($reporter) {
+                return make($reporter);
+            }, $reporters);
+        }
+
+        $this->isDebug = config('debug', false);
     }
 
     /**
-     * @inheritdoc
      * @author Verdient。
      */
+    #[Override]
     public function listen(): array
     {
         return [
@@ -67,138 +71,30 @@ class ExceptionOccurredListener implements ListenerInterface
 
     /**
      * @param ExceptionOccurredEvent $event
+     *
      * @author Verdient。
      */
+    #[Override]
     public function process(object $event): void
     {
-        if (!$this->enable) {
-            return;
-        }
-        $name = config('app_name');
-        $env = config('app_env');
-        $identifier = env('IDENTIFIER', 'Unknown environment');
-        if ($event->file && $event->line) {
-            $key = $event->file . ':' . $event->line;
-        } else {
-            $key = $event->message;
-        }
-        if (!$this->should($key)) {
-            return;
-        }
-        $traceString = null;
-        if (defined('BASE_PATH')) {
-            $baseDir = constant('BASE_PATH') . DIRECTORY_SEPARATOR;
-        } else {
-            $baseDir = '';
-        }
-        if (!empty($event->trace)) {
-            $traces = [];
-            $vendorDir = $baseDir . 'vendor';
-            foreach ($event->trace as $trace) {
-                foreach (['file', 'line', 'class', 'type', 'function'] as $attribute) {
-                    if (!isset($trace[$attribute])) {
-                        continue 2;
-                    }
-                }
-                if (Str::startsWith($trace['file'],  $vendorDir)) {
-                    continue;
-                }
-                $traces[] = $trace;
-            }
-            if (!empty($traces)) {
-                foreach ($traces as $index => $trace) {
-                    $file = substr($trace['file'], strlen($baseDir));
-                    $line = $trace['line'];
-                    $class = $trace['class'];
-                    $type = $trace['type'];
-                    $function = $trace['function'];
-                    $traceString .= "\n#$index $file($line): $class$type$function()";
-                }
-                $traceString = substr($traceString, 1);
+        if ($this->isDebug) {
+            if ($logger = Container::getOrNull(StdoutLoggerInterface::class)) {
+                $formatter = Container::getOrNull(FormatterInterface::class);
+                $logger->error($formatter ? $formatter->format($event->throwable) : $event->throwable);
             }
         }
-        if ($event->file) {
-            $baseDirLength = strlen($baseDir);
-            if (substr($event->file, 0, $baseDirLength) === $baseDir) {
-                $file = substr($event->file, $baseDirLength);
-            } else {
-                $file = $event->file;
-            }
-        } else {
-            $file = null;
-        }
-        $line = $event->line;
-        $type = $event->type;
-        if ($event->type) {
-            $alert = "[炸弹] $name [$identifier] [$env] [$type] ‼️";
-        } else {
-            $alert = "[炸弹] $name [$identifier] [$env] ‼️";
-        }
-        $alert .= "\n$event->message";
-        if ($line) {
-            $alert .= "\nin $file:$line";
-            $path = $baseDir . $file;
-            if (file_exists($path)) {
-                $phpFile = new SplFileObject($path, 'r');
-                $phpFile->seek($line - 1);
-                $snippet = trim($phpFile->current());
-                $alert .= "\n\n$snippet";
-            }
-        } else if ($file) {
-            $alert .= "\nin $file";
-        }
-        if ($traceString) {
-            $alert .= "\n\n$traceString";
-        }
-        $this->alertDevelopers($alert);
-    }
 
-    /**
-     * 判断是否要发送
-     * @param string $content 消息内容
-     * @return bool
-     * @author Verdient。
-     */
-    protected function should($content)
-    {
-        $now = time();
-        $contentHash = hash('sha256', $content);
-        foreach ($this->hashs as $hash => $time) {
-            $endAt = $now - $this->silence;
-            if ($time < $endAt) {
-                unset($this->hashs[$hash]);
-            }
-        }
-        if (!isset($this->hashs[$contentHash])) {
-            $this->hashs[$contentHash] = $now;
-            $this->lastSendAt = $now;
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * 提醒开发者
-     * @param string $message 提示信息
-     * @author Verdient。
-     */
-    public function alertDevelopers(string $message)
-    {
-        /** @var AlertorInterface[] */
-        $alertors = array_unique([
-            ...config('alertors.alertors', []),
-            ...array_keys(AnnotationCollector::getClassesByAnnotation(Alertor::class))
-        ]);
-
-        foreach ($alertors as $alertor) {
-            Coroutine::create(function () use ($message, $alertor) {
+        foreach ($this->reporters as $reporter) {
+            Coroutine::create(function () use ($reporter, $event) {
                 try {
-                    $result = $alertor::alert($message);
+                    $result = $reporter->report($event);
                     if (!$result->getIsOK()) {
-                        $this->logger()->emergency($result->getMessage());
+                        $logger = $this->loggerFactory->get('app');
+                        $logger->critical(new RuntimeException($reporter::class . ': ' . $result->getMessage()));
                     }
                 } catch (\Throwable $e) {
-                    $this->logger()->emergency($e);
+                    $logger = $this->loggerFactory->get('app');
+                    $logger->critical($e);
                 }
             });
         }

@@ -8,9 +8,9 @@ use Attribute;
 use Hyperf\Di\Annotation\AbstractAnnotation;
 
 /**
- * 报警器
+ * 报告器
  *
  * @author Verdient。
  */
 #[Attribute(Attribute::TARGET_CLASS)]
-class Alertor extends AbstractAnnotation {}
+class Reporter extends AbstractAnnotation {}

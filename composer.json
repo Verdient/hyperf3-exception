@@ -2,13 +2,23 @@
     "name": "verdient/hyperf3-exception",
     "type": "library",
     "require": {
+        "hyperf/command": "^3.1",
         "hyperf/config": "^3.1",
+        "hyperf/context": "^3.1",
+        "hyperf/contract": "^3.1",
         "hyperf/di": "^3.1",
         "hyperf/event": "^3.1",
+        "hyperf/exception-handler": "^3.1",
+        "hyperf/framework": "^3.1",
+        "hyperf/logger": "^3.1",
         "hyperf/stringable": "^3.1",
         "hyperf/support": "^3.1",
-        "verdient/hyperf3-logger": "^1.0",
-        "verdient/hyperf3-struct": "^1.0"
+        "swow/psr7-plus": "^1.1",
+        "verdient/hyperf3-di": "^2.0",
+        "verdient/hyperf3-struct": "^2.0"
+    },
+    "require-dev": {
+        "swoole/ide-helper": "^6.0"
     },
     "autoload": {
         "psr-4": {
@@ -19,5 +29,8 @@
         "hyperf": {
             "config": "Verdient\\Hyperf3\\Exception\\ConfigProvider"
         }
+    },
+    "config": {
+        "sort-packages": true
     }
 }

@@ -7,18 +7,18 @@ namespace Verdient\Hyperf3\Exception;
 use Verdient\Hyperf3\Struct\Result;
 
 /**
- * 报警器接口
+ * 报告器接口
  *
  * @author Verdient。
  */
-interface AlertorInterface
+interface ReporterInterface
 {
     /**
-     * 发送警报
+     * 报告异常
      *
      * @param ExceptionOccurredEvent $event 异常事件
      *
      * @author Verdient。
      */
-    public function alert(ExceptionOccurredEvent $event): Result;
+    public function report(ExceptionOccurredEvent $event): Result;
 }
