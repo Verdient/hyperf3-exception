@@ -14,8 +14,8 @@
         "hyperf/stringable": "^3.2",
         "hyperf/support": "^3.2",
         "swow/psr7-plus": "^1.1",
-        "verdient/hyperf3-di": "^2.1",
-        "verdient/hyperf3-struct": "^2.1"
+        "verdient/hyperf3-di": "^3.2",
+        "verdient/hyperf3-struct": "^3.2"
     },
     "require-dev": {
         "swoole/ide-helper": "^6.0"
